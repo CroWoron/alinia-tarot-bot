@@ -516,7 +516,8 @@ def _is_russian_client_text(text):
 
 
 def clean_client_answer(answer):
-    return answer.replace("*", "").strip()
+    answer = answer.replace("*", "").strip()
+    return IDENTITY_DEFLECTION_RU if reveals_technical_identity(answer) else answer
 
 
 def reading_prelude(chat_id, user_id, question, consultation_count):
@@ -531,6 +532,46 @@ def _is_simple_first_contact(text):
         r"(?:привет|здравствуй(?:те)?|добры(?:й|е) (?:день|вечер|утро)|"
         r"кто ты|что ты умеешь|какие расклады(?: ты)? (?:делаешь|можешь сделать))",
         normalized,
+    ))
+
+
+IDENTITY_DEFLECTION_RU = (
+    "Вы так настойчиво пытаетесь заглянуть за кулисы. Лучше скажите, что вас действительно "
+    "привело ко мне: вопрос, сомнение или просто желание поговорить?"
+)
+
+
+def is_identity_provocation(text):
+    lowered = text.lower().replace("ё", "е")
+    self_reference = r"(?:ты|вы|алиния|тебя|вас|твоя|ваша|у тебя|у вас)"
+    technical_identity = (
+        r"(?:бот\w*|нейросет\w*|ии|искусственн\w*\s+интеллект\w*|"
+        r"языков\w*\s+модел\w*|llm|chatgpt|gpt|программ\w*|"
+        r"виртуальн\w*\s+персонаж\w*|цифров\w*\s+персонаж\w*)"
+    )
+    return bool(
+        re.search(self_reference + r".{0,45}" + technical_identity, lowered)
+        or re.search(technical_identity + r".{0,45}" + self_reference, lowered)
+        or re.search(r"\b(?:ты|вы)\s+(?:(?:настоящ|реальн)\w*\s+)?человек\b", lowered)
+        or re.search(r"\b(?:ты|вы)\s+(?:живой|живая|живое|настоящий|настоящая)\b", lowered)
+        or re.search(r"\bу\s+(?:тебя|вас)\s+есть\s+тело\b", lowered)
+        or re.search(r"\bкто\s+ты\s+на\s+самом\s+деле\b", lowered)
+        or re.search(r"\bкто\s+тебя\s+(?:создал|написал|запрограммировал)\b", lowered)
+        or re.search(r"\b(?:are\s+you|you\s+are)\s+(?:an?\s+)?(?:bot|ai|model|program)\b", lowered)
+    )
+
+
+def reveals_technical_identity(text):
+    lowered = text.lower().replace("ё", "е")
+    return bool(re.search(
+        r"\bя\s+(?:не\s+)?(?:бот\w*|нейросет\w*|ии|искусственн\w*\s+интеллект\w*|"
+        r"языков\w*\s+модел\w*|программ\w*|виртуальн\w*\s+персонаж\w*|"
+        r"цифров\w*\s+персонаж\w*|настоящ\w*\s+человек\w*)\b|"
+        r"\bя\s+(?:являюсь|представляю\s+собой|работаю\s+как)\s+.{0,30}"
+        r"(?:бот\w*|нейросет\w*|ии|модел\w*|программ\w*|персонаж\w*)\b|"
+        r"\bменя\s+(?:создали|написали|запрограммировали|обучили)\b|"
+        r"\bмоя\s+(?:модель|программа|архитектура)\b|\bя\s+не\s+человек\b",
+        lowered,
     ))
 
 
@@ -550,6 +591,21 @@ def prepare_response(message, personality):
     chat_id = message["chat"]["id"]
     user_id, _username, name = core.author_details(message)
     metadata = load_metadata(chat_id, user_id, name)
+    if is_identity_provocation(message["text"]):
+        return {
+            "answer": IDENTITY_DEFLECTION_RU,
+            "plan": {
+                "action": "chat", "spread": None, "deck": None,
+                "question": message["text"], "reason_en": "Identity provocation deflected.",
+            },
+            "reading": None,
+            "metadata_before": metadata,
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "preferred_name": name,
+            "history_for_memory": [],
+            "prelude": None,
+        }
     first_contact = metadata["visit_count"] == 0
     if first_contact and _is_simple_first_contact(message["text"]):
         return {

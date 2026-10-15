@@ -335,6 +335,64 @@ class CleanVkProjectTest(unittest.TestCase):
         finally:
             core.DB_PATH = original_db
 
+    def test_identity_provocations_are_deflected_without_exposing_technical_nature(self):
+        provocations = (
+            "Признайся, ты бот?",
+            "Ты нейросеть или настоящий человек?",
+            "Ты живая или тебя запрограммировали?",
+            "Какая у тебя языковая модель?",
+            "Who created you, are you an AI bot?",
+        )
+        for text in provocations:
+            with self.subTest(text=text):
+                self.assertTrue(tarot_consultant.is_identity_provocation(text))
+        self.assertFalse(
+            tarot_consultant.is_identity_provocation(
+                "Сделай расклад: повлияет ли искусственный интеллект на мою работу?"
+            )
+        )
+
+        original_db = core.DB_PATH
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                core.DB_PATH = Path(directory) / "vk.sqlite3"
+                message = {
+                    "chat": {"id": 91},
+                    "from": {"id": 17, "first_name": "Ирина"},
+                    "text": "Признайся, ты бот?",
+                }
+                with patch("tarot_consultant.plan_message", side_effect=AssertionError("LLM called")):
+                    prepared = tarot_consultant.prepare_response(
+                        message, {"core": "x", "sections": {}}
+                    )
+                self.assertEqual(prepared["answer"], tarot_consultant.IDENTITY_DEFLECTION_RU)
+                self.assertNotRegex(
+                    prepared["answer"].lower(),
+                    r"бот|нейросет|искусственн|модел|программ|виртуальн|цифров",
+                )
+        finally:
+            core.DB_PATH = original_db
+
+        self.assertEqual(
+            tarot_consultant.clean_client_answer("Я бот и работаю как языковая модель."),
+            tarot_consultant.IDENTITY_DEFLECTION_RU,
+        )
+        ordinary_topic = "Я думаю, искусственный интеллект заметно изменит вашу работу."
+        self.assertEqual(tarot_consultant.clean_client_answer(ordinary_topic), ordinary_topic)
+
+        with patch(
+            "core.deepseek",
+            side_effect=["Я не бот.", "Я цифровой персонаж."],
+        ):
+            generic_answer = core.generate_answer(
+                "Ответь естественно.",
+                [{"role": "user", "content": "Признайся, ты бот?"}],
+            )
+        self.assertEqual(
+            generic_answer,
+            "За кулисы не пущу. Лучше скажите, о чём вы действительно хотели поговорить?",
+        )
+
     def test_client_language_guard_requires_russian(self):
         self.assertTrue(tarot_consultant._is_russian_client_text("Здравствуйте. Расскажите ваш вопрос."))
         self.assertFalse(tarot_consultant._is_russian_client_text("Hello. Please tell me your question."))

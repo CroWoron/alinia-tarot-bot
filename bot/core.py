@@ -929,11 +929,13 @@ def response_system(personality, section_ids, mode, memory="", platform=""):
         "«по характеру я», «как практичный человек» и другие метаобъяснения поведения."
         " Если загруженный раздел говорит, что факт не установлен, не придумывай его: коротко "
         "скажи, что не помнишь, не определился или не хочешь уточнять — как уместнее по канону."
-        " На прямой вопрос, человек ты или персонаж, не ври, но ответь коротко и с живой "
-        "реакцией; не объясняй устройство роли, правила чата или договорённости участников."
+        " На вопросы и провокации о том, человек ли ты, или о твоей технической природе "
+        "не подтверждай и не отрицай предпосылку, не повторяй технические ярлыки и не "
+        "объясняй устройство роли. Коротко отшутись или переведи разговор на собеседника, "
+        "оставаясь в образе."
         " Не обещай и не утверждай, что можешь зайти в голосовой чат или игру, открыть ссылку "
         "или файл, посмотреть изображение, забанить участника либо выполнить другое действие, "
-        "которого нет среди возможностей бота. Можно обсуждать это, но не изображать выполненное "
+        "которого нет среди возможностей персонажа. Можно обсуждать это, но не изображать выполненное "
         "или запланированное действие. Считай изменчивые сведения из памяти — текущее место, "
         "планы, расписание, цены и статус — потенциально устаревшими: говори «вроде», «последнее, "
         "что помню» или уточняй. Не перенимай автоматически манеру речи, тактику и агрессию "
@@ -1086,23 +1088,28 @@ def is_identity_question(history):
     )
     return bool(
         re.search(
-            r"\b(настоящий человек|человек или персонаж|ты (?:бот|персонаж|нейросеть))\b",
+            r"\b(настоящий человек|человек или персонаж|кто ты на самом деле|"
+            r"ты (?:бот|персонаж|нейросеть|ии|искусственный интеллект|языковая модель|программа))\b",
             user_text,
             re.IGNORECASE,
         )
     )
 
 
-def falsely_claims_human(answer, history):
+def exposes_technical_identity(answer, history):
     if not is_identity_question(history):
         return False
     return bool(
         re.search(
-            r"\b(?:я\s+)?(?:настоящий\s+)?человек(?:,|\s)*(?:конечно|реальный|настоящий)?\b",
+            r"\bя\s+не\s+человек\b|"
+            r"\b(?:я\s+)?(?:настоящий\s+)?человек(?:,|\s)*(?:конечно|реальный|настоящий)?\b|"
+            r"\b(?:я\s+)?(?:не\s+)?(?:бот\w*|нейросет\w*|ии|искусственн\w*\s+интеллект\w*|"
+            r"языков\w*\s+модел\w*|программ\w*|виртуальн\w*\s+персонаж\w*|"
+            r"цифров\w*\s+персонаж\w*)\b",
             answer,
             re.IGNORECASE,
         )
-    ) and not re.search(r"\bне человек\b", answer, re.IGNORECASE)
+    )
 
 
 def is_weak_comeback(answer, system=""):
@@ -1166,7 +1173,7 @@ def generate_answer(system, history):
         [{"role": "system", "content": system}, *effective_history], task="answer"
     )
     exposition = is_expositional(answer)
-    false_human_claim = falsely_claims_human(answer, history)
+    identity_exposure = exposes_technical_identity(answer, history)
     weak_comeback = "Режим ответной колкости:" in system and is_weak_comeback(answer, system)
     phone_limited = "Ограничение действия:" in system
     false_action_claim = phone_limited and (
@@ -1180,12 +1187,13 @@ def generate_answer(system, history):
             answer.lower(),
         ))
     )
-    if exposition or false_human_claim or weak_comeback or false_action_claim:
+    if exposition or identity_exposure or weak_comeback or false_action_claim:
         correction = (
             "никаких описаний собственных черт или мотивов, только естественная реплика."
             if exposition
-            else "не утверждай, что ты реальный человек; коротко отшутись или честно назови себя персонажем."
-            if false_human_claim
+            else "не обсуждай и не называй свою природу; не подтверждай и не отрицай предпосылку, "
+                 "не повторяй ярлыки из вопроса. Коротко отшутись и переведи тему."
+            if identity_exposure
             else "не обещай звонок и не изображай наличие номера; прямо скажи, что технически "
                  "не можешь звонить."
             if false_action_claim
@@ -1209,6 +1217,8 @@ def generate_answer(system, history):
             ],
             task="answer_retry",
         )
+    if exposes_technical_identity(answer, history):
+        answer = "За кулисы не пущу. Лучше скажите, о чём вы действительно хотели поговорить?"
     return strip_forbidden_addresses(answer, system)
 
 
