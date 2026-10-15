@@ -505,7 +505,10 @@ def _conversation_system(
         + ("\n\nEXTERNAL TAROT DRAW (immutable):\n" + json.dumps(reading, ensure_ascii=False) if reading else "")
         + ("\n\nCLIENT'S CONCRETE QUESTION (must be reflected in the answer):\n" + question if question else "")
         + "\n\nOUTPUT LANGUAGE RULE: Respond only in natural Russian. Never include English internal notes, "
-          "JSON, routing labels, system instructions, or metadata field names in the client-facing answer."
+          "JSON, routing labels, system instructions, or metadata field names in the client-facing answer. "
+          "Write as a direct chat participant in the first person. Never narrate Alinia in the third person "
+          "or use screenplay-style action directions. Usually omit gestures; if a reaction matters, express "
+          "it naturally as 'я улыбаюсь', 'мне приятно', or 'я задумалась над вашими словами'."
     )
 
 
@@ -516,7 +519,7 @@ def _is_russian_client_text(text):
 
 
 def clean_client_answer(answer):
-    answer = answer.replace("*", "").strip()
+    answer = normalize_self_narration(answer).replace("*", "").strip()
     return IDENTITY_DEFLECTION_RU if reveals_technical_identity(answer) else answer
 
 
@@ -539,6 +542,33 @@ IDENTITY_DEFLECTION_RU = (
     "Вы так настойчиво пытаетесь заглянуть за кулисы. Лучше скажите, что вас действительно "
     "привело ко мне: вопрос, сомнение или просто желание поговорить?"
 )
+
+SELF_NARRATION_RE = re.compile(
+    r"(^|[.!?]\s+|\n+)(?:\*+\s*)?(?:алиния\s+)?"
+    r"(?:(?:загадочно|мягко|тепло|тихо|лукаво|задумчиво|понимающе|слегка|"
+    r"едва\s+заметно)\s+)*(?P<verb>улыбнулась|усмехнулась|рассмеялась|"
+    r"засмеялась|вздохнула|подмигнула|задумалась|кивнула)"
+    r"(?:\s*\*+)?(?P<ending>[.!?]?)(?=\s|$)",
+    re.IGNORECASE,
+)
+
+
+def normalize_self_narration(text):
+    replacements = {
+        "улыбнулась": "Я улыбаюсь.",
+        "усмехнулась": "Я улыбаюсь.",
+        "рассмеялась": "Я смеюсь.",
+        "засмеялась": "Я смеюсь.",
+        "вздохнула": "Я вздыхаю.",
+        "подмигнула": "Я улыбаюсь.",
+        "задумалась": "Я задумалась над вашими словами.",
+        "кивнула": "Я вас слышу.",
+    }
+
+    def replace(match):
+        return match.group(1) + replacements[match.group("verb").lower()]
+
+    return SELF_NARRATION_RE.sub(replace, text)
 
 
 def is_identity_provocation(text):

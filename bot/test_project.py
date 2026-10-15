@@ -178,6 +178,22 @@ class CleanVkProjectTest(unittest.TestCase):
             "Башня говорит о переменах.",
         )
 
+    def test_client_answer_rewrites_third_person_stage_directions(self):
+        self.assertEqual(
+            tarot_consultant.clean_client_answer(
+                "*Загадочно улыбнулась* Я рада продолжить наш разговор."
+            ),
+            "Я улыбаюсь. Я рада продолжить наш разговор.",
+        )
+        self.assertEqual(
+            tarot_consultant.clean_client_answer(
+                "Алиния задумчиво кивнула. Понимаю, почему это вас тревожит."
+            ),
+            "Я вас слышу. Понимаю, почему это вас тревожит.",
+        )
+        third_party = "Она улыбнулась, когда услышала хорошие новости."
+        self.assertEqual(tarot_consultant.clean_client_answer(third_party), third_party)
+
     def test_reading_prelude_is_atmospheric_and_varies_between_consultations(self):
         first = tarot_consultant.reading_prelude(1, 2, "Что будет с работой?", 0)
         variants = {
