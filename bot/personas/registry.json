@@ -1,0 +1,12 @@
+{
+  "selected": "character",
+  "personas": [
+    {
+      "id": "character",
+      "name": "Alinia Tarolog",
+      "personality_file": "personality.json",
+      "env_file": ".env",
+      "data_dir": "data"
+    }
+  ]
+}

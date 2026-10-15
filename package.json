@@ -1,0 +1,16 @@
+{
+  "name": "tarolog-celtic-cross",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/cli.ts",
+    "bot:bridge": "node src/bot-bridge.ts",
+    "test": "node --test test/*.test.ts",
+    "tools:describe": "node src/tool-server.ts --describe",
+    "tools:serve": "node src/tool-server.ts"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

@@ -1,0 +1,7 @@
+.env
+bot/.env
+bot/__pycache__/
+bot/data/
+node_modules/
+deploy/
+*.pyc
